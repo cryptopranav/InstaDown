@@ -30,7 +30,7 @@ com.pranavkd.igdownloader
     ├── remote/
     │   ├── api/               # InstagramApiService (Retrofit interface)
     │   ├── dto/                # Raw API response DTOs
-    │   └── interceptor/        # AuthHeaderInterceptor (injects key server-side or from proxy)
+    │   └── interceptor/        # AuthHeaderInterceptor (adds x-rapidapi-key/x-rapidapi-host to every request)
     ├── local/
     │   ├── db/                 # AppDatabase (Room)
     │   ├── dao/                # DownloadDao
@@ -49,45 +49,30 @@ Coil (thumbnails), kotlinx.coroutines + Flow, DataStore (lightweight settings, i
 
 ---
 
-## 2. ⚠️ Security Foundation — Read Before Writing Any Code
+## 2. ⚠️ Security Notes — Direct RapidAPI Calls, Hardcoded Key
 
-Your RapidAPI key `x-rapidapi-key` is a **paid, billable secret**. Anything shipped inside an
-APK — a string resource, `BuildConfig` field, or even a native `.so` — **can be extracted** by
-anyone with the APK and enough patience (decompile, Frida hook, memory dump, MITM proxy). There
-is no client-side trick that makes a key shipped to millions of devices un-extractable. Client-side
-"protection" only raises the cost of extraction; it does not eliminate it.
+Per your direction, this build calls `instagram-all-in-one-downloader.p.rapidapi.com` directly
+from the app — no backend proxy. Worth being clear about the trade-off once, briefly, then moving
+on: a key shipped inside an APK **can be extracted** by anyone with the APK and enough patience
+(decompile, Frida hook, memory dump), even with the mitigations below — these reduce casual
+exposure, they don't make extraction impossible. That's the accepted trade-off for this build.
 
-**Recommended approach for a production app (do this):**
+Given that, do this instead of a raw string literal in Kotlin source:
 
-Build a thin backend proxy that holds the RapidAPI key server-side, and have the Android app call
-*your own* domain only. The app never sees the RapidAPI key at all.
-
-- You already operate a Cloudflare Workers proxy for Instagram reel downloading — reuse or extend
-  that Worker as this proxy, or stand up a new lightweight Worker/Cloudflare Function.
-- Proxy contract: `POST https://api.yourdomain.dev/v1/resolve` with `{ "url": "<instagram_link>" }`
-  in the body → Worker attaches `x-rapidapi-key` server-side, calls RapidAPI, returns the JSON
-  to the app.
-- Add your own lightweight auth on the Worker (e.g. a per-install anonymous token issued on first
-  launch, or a static app-secret header + rate limiting by IP/device) so the proxy itself isn't an
-  open relay that burns your RapidAPI quota.
-- Add server-side rate limiting (Cloudflare Workers KV or Durable Objects) per device/IP to protect
-  your RapidAPI billing from abuse.
-- This is the path the rest of this document assumes (`InstagramApiService` below points at your
-  proxy, not directly at `instagram-all-in-one-downloader.p.rapidapi.com`).
-
-**Fallback only if you truly must call RapidAPI directly from the device** (not recommended for
-production — documented here so the trade-off is explicit, not because it's advised):
-
-- Never put the key in `strings.xml`, `local.properties → BuildConfig`, or any Kotlin string
-  literal — these are trivially grep-able after `apktool`/`jadx` decompilation.
-- Store obfuscated key fragments in a native library (NDK/C++, reconstructed via JNI at runtime)
-  to defeat casual static `strings` scanning — this does **not** defeat dynamic extraction
-  (Frida/Xposed hooking the JNI call, or a rooted-device MITM).
-- Enable R8 full mode + resource shrinking; treat it as a minor speed bump, not real protection.
-- Set a hard monthly quota cap and usage alerts in the RapidAPI dashboard so a leaked key has a
-  bounded blast radius.
-- SSL pinning (§8) still matters here even without a proxy — it stops a MITM tool from reading the
-  key off the wire in transit, though it doesn't stop static/dynamic extraction from the APK itself.
+- Put the key in `local.properties` (already git-ignored by default in Android Studio projects —
+  confirm this in Task 0.5) as `RAPIDAPI_KEY=f03bfca47fmsh7c54a8b6e4530e5p12b0c9jsn4fc55eb89b3c`,
+  and expose it as a `BuildConfig` field via `buildConfigField` in `build.gradle`, rather than
+  writing the literal directly into a `.kt` file. This keeps it out of source control and out of
+  `strings.xml` (XML resources are the easiest thing to grep in a decompiled APK).
+- Reference it only from one place — the auth interceptor (Phase 1) — not scattered across
+  multiple files.
+- Enable R8/ProGuard with full mode on release builds (Phase 12.1) so the constant isn't sitting
+  in an obviously-named field in the compiled bytecode.
+- Set a hard monthly usage cap / spend limit and usage alerts in your RapidAPI dashboard now
+  (Task 1.4) — with no proxy-side rate limiting, the app itself is the only thing standing between
+  a leaked key and your bill, so the dashboard cap is your real backstop.
+- SSL pinning (Phase 8) still matters here: it stops a MITM tool from reading the key off the wire
+  in transit, even though it doesn't stop someone extracting it from the APK directly.
 
 ---
 
@@ -240,29 +225,29 @@ Notes worth designing around:
 - [ ] 0.2 Add Compose BOM, enable Compose in `build.gradle`.
 - [ ] 0.3 Add dependencies: Hilt, Retrofit, OkHttp (+ logging-interceptor for debug builds only),
   kotlinx.serialization, Room + KSP, Coil-Compose, Navigation-Compose, kotlinx.coroutines.
-- [ ] 0.4 Set up `debug`/`release` build variants; confirm no secrets in either `build.gradle` or
-  `local.properties` are referenced via `BuildConfig` (per §2, the app talks to your own proxy,
-  which needs no client secret beyond a non-sensitive app identifier if you choose to add one).
+- [ ] 0.4 Set up `debug`/`release` build variants; add `RAPIDAPI_KEY` to `local.properties` and
+  expose it via `buildConfigField` (see §2) — confirm it resolves correctly in both variants.
 - [ ] 0.5 Set up Git repo, `.gitignore` (exclude `local.properties`, keystores, `google-services.json`
   if used), README.
 
-### Phase 1 — Backend Proxy (do this before any Android networking code)
-- [ ] 1.1 Stand up / extend the Cloudflare Worker: `POST /v1/resolve { url }` → calls RapidAPI
-  `GET /download?url=<encoded>` with the three required headers, returns the raw JSON body.
-- [ ] 1.2 Store the RapidAPI key as a Worker **secret** (`wrangler secret put RAPIDAPI_KEY`),
-  never in Worker source.
-- [ ] 1.3 Add basic abuse protection: per-IP or per-device rate limit (Workers KV counter or
-  Durable Object), reject if exceeded.
-- [ ] 1.4 Add CORS/host checks if relevant; add a simple app-identifier header check (not a real
-  secret — just enough to stop drive-by scraping of your proxy URL).
-- [ ] 1.5 Deploy, confirm the Worker's TLS certificate (needed for SSL pinning in §8 — you'll pin
-  *this* domain, not RapidAPI's).
-- [ ] 1.6 Manually curl the Worker end-to-end with a real Instagram reel URL, save the raw JSON
-  response — this becomes the input for Task 4.1.
+### Phase 1 — RapidAPI Key Setup & Direct Network Config
+- [ ] 1.1 Add `RAPIDAPI_KEY="f03bfca47fmsh7c54a8b6e4530e5p12b0c9jsn4fc55eb89b3c"` to `local.properties`;
+  read it in `build.gradle` and expose as `BuildConfig.RAPIDAPI_KEY`.
+- [ ] 1.2 Confirm `local.properties` is listed in `.gitignore` (Task 0.5) — verify with
+  `git check-ignore -v local.properties` before the first commit.
+- [ ] 1.3 Write `AuthHeaderInterceptor`: appends `x-rapidapi-key: BuildConfig.RAPIDAPI_KEY` and
+  `x-rapidapi-host: instagram-all-in-one-downloader.p.rapidapi.com` to every outgoing request.
+- [ ] 1.4 Set a hard monthly spend/usage cap and email alert threshold in the RapidAPI dashboard
+  for this key now, before shipping — this is your only backstop against abuse once the key is
+  in a distributed APK (see §2).
+- [ ] 1.5 Manually curl the endpoint exactly as you did to confirm the response schema (already
+  done — §3.3), then do one end-to-end test call **from the app itself** early, before building
+  out the rest of the data layer, to confirm the headers and base URL are wired correctly.
 
 ### Phase 2 — Core Infrastructure (DI, Networking, Database)
-- [ ] 2.1 `NetworkModule` (Hilt): OkHttpClient with timeouts, `CertificatePinner` (stub for now,
-  filled in Phase 8), Retrofit instance pointed at your proxy base URL.
+- [ ] 2.1 `NetworkModule` (Hilt): OkHttpClient with `AuthHeaderInterceptor` (Task 1.3), timeouts,
+  `CertificatePinner` (stub for now, filled in Phase 8), Retrofit instance with base URL
+  `https://instagram-all-in-one-downloader.p.rapidapi.com/`.
 - [ ] 2.2 `DatabaseModule`: Room `AppDatabase`, `DownloadDao` with `Flow`-returning queries
   (`getAll()`, `getById()`, insert/update/delete).
 - [ ] 2.3 `AppModule`: provide `CoroutineDispatchers` wrapper (IO/Default/Main) for testability.
@@ -287,16 +272,17 @@ Notes worth designing around:
 - [ ] 4.1 Implement `MediaResolveResponseDto`/`MediaAssetDto` exactly per the confirmed schema in
   §3.3. Still worth one live call against an **image post** URL to confirm the `type: "image"`
   assumption before relying on it in the mux-decision logic.
-- [ ] 4.2 `InstagramApiService` Retrofit interface: `@POST("v1/resolve")` (or `GET` if you kept the
-  proxy's shape as GET passthrough) → returns `MediaResolveResponseDto`. If `status == false`,
+- [ ] 4.2 `InstagramApiService` Retrofit interface: `@GET("download")` with `@Query("url") url: String`
+  (URL-encoded per the curl example) → returns `MediaResolveResponseDto`. If `status == false`,
   map to a failure using the DTO's `error` string rather than throwing a generic exception.
 - [ ] 4.3 Mappers: `MediaAssetDto.type` string → `MediaTrackType` enum (unknown/unexpected type
   values should map to a safe fallback + logged warning, not a crash); DTO → `MediaInfo`
   (domain); on download start, `MediaInfo` → one `DownloadGroupEntity` + one
   `DownloadTrackEntity` per track.
-- [ ] 4.4 `MediaRepositoryImpl`: calls API service, maps errors (no internet, 4xx from proxy,
-  `status:false` with `error` message from the DTO, RapidAPI quota exceeded surfaced by your
-  proxy as a specific status code) into typed domain errors (`sealed class MediaError`).
+- [ ] 4.4 `MediaRepositoryImpl`: calls API service, maps errors (no internet, RapidAPI 4xx —
+  including a `429` for rate/quota limits, which should map to a distinct "try again later"
+  error rather than a generic one, `status:false` with `error` message from the DTO) into
+  typed domain errors (`sealed class MediaError`).
 - [ ] 4.5 `DownloadRepositoryImpl`: wraps `DownloadDao` (groups + tracks), exposes
   `Flow<List<DownloadItem>>` mapped from group+child-track joins (summed progress, derived
   status); delegates actual byte transfer to `DownloadEngine`/`DownloadService` (Phase 5).
@@ -395,22 +381,30 @@ Notes worth designing around:
 - [ ] 7.6 Empty state ("No downloads yet") when the list is empty.
 
 ### Phase 8 — SSL Pinning
-- [ ] 8.1 Extract the SHA-256 pin of your **own proxy domain's** certificate (not RapidAPI's,
-  since the app only talks to your proxy per §2):
+⚠️ You're now pinning a **third-party domain you don't control** (`instagram-all-in-one-downloader.p.rapidapi.com`,
+fronted by RapidAPI's gateway infrastructure) instead of your own server. RapidAPI can rotate that
+cert on their own schedule, with no notice to you — if that happens and you haven't shipped an app
+update with the new pin, every request in the field starts failing. This is a materially higher
+operational risk than pinning infrastructure you own; budget for monitoring it (Task 8.6).
+
+- [ ] 8.1 Extract the SHA-256 pin of the RapidAPI host's certificate:
   ```
-  openssl s_client -connect api.yourdomain.dev:443 -servername api.yourdomain.dev < /dev/null 2>/dev/null \
+  openssl s_client -connect instagram-all-in-one-downloader.p.rapidapi.com:443 \
+    -servername instagram-all-in-one-downloader.p.rapidapi.com < /dev/null 2>/dev/null \
     | openssl x509 -pubkey -noout \
     | openssl pkey -pubin -outform der \
     | openssl dgst -sha256 -binary | base64
   ```
-- [ ] 8.2 Also extract a **backup pin** — either the issuing CA's public key, or (if on
-  Cloudflare) a second Cloudflare edge cert — so a routine cert rotation doesn't hard-brick
-  the app. Never ship a single pin with no backup.
+- [ ] 8.2 Pin the **intermediate CA's** public key in addition to the leaf cert's, not just the
+  leaf — intermediate CAs rotate far less often than a gateway's leaf cert, so this materially
+  reduces how often you'll need to ship an app update purely to keep pinning working. Extract
+  it the same way, using the intermediate cert from the chain (`openssl s_client -showcerts`
+  to see the full chain). Never ship a single pin with no backup regardless.
 - [ ] 8.3 Wire into `NetworkModule`'s `OkHttpClient.Builder`:
   ```kotlin
   CertificatePinner.Builder()
-      .add("api.yourdomain.dev", "sha256/PRIMARY_PIN=")
-      .add("api.yourdomain.dev", "sha256/BACKUP_PIN=")
+      .add("instagram-all-in-one-downloader.p.rapidapi.com", "sha256/LEAF_PIN=")
+      .add("instagram-all-in-one-downloader.p.rapidapi.com", "sha256/INTERMEDIATE_CA_PIN=")
       .build()
   ```
 - [ ] 8.4 Alternatively/additionally declare the same pins in
@@ -418,10 +412,11 @@ Notes worth designing around:
   and it also protects any WebView usage if you add one later.
 - [ ] 8.5 Handle `SSLPeerUnverifiedException` gracefully: show a "secure connection couldn't be
   verified — please update the app" message rather than a raw crash; log (without the payload)
-  to your crash reporting tool so you know if a pin needs rotating.
-- [ ] 8.6 **Operational task, not a one-time code task:** put a calendar reminder ~30 days before
-  your proxy's TLS cert is due to rotate, so you can ship an app update with the new pin ahead
-  of expiry. A pinned app with an expired/rotated, un-updated pin set fails 100% of requests.
+  to your crash reporting tool so you know immediately if RapidAPI has rotated their cert.
+- [ ] 8.6 **Operational task, not a one-time code task:** since you don't control RapidAPI's cert
+  rotation schedule, set up a recurring (e.g. weekly) automated check — a small script that
+  runs the same `openssl` command from 8.1 and diffs the result against your shipped pins — so
+  you get advance warning of a rotation instead of finding out from a spike in failed requests.
 - [ ] 8.7 Test pinning actually works: point a MITM proxy (e.g. Charles/mitmproxy with a trusted
   root cert on a test device) at the app and confirm requests are rejected.
 
@@ -436,11 +431,11 @@ Notes worth designing around:
   friction).
 
 ### Phase 10 — Error Handling & Edge Cases
-- [ ] 10.1 Private/deleted/age-restricted post → proxy/RapidAPI will fail to resolve; surface a
+- [ ] 10.1 Private/deleted/age-restricted post → RapidAPI will fail to resolve; surface a
   clear, specific message ("This post is private or unavailable") rather than a generic error.
 - [ ] 10.2 No network connectivity → check before hitting Fetch/Download, show offline state.
-- [ ] 10.3 RapidAPI quota exhausted (surfaced by your proxy) → distinct message + optional
-  client-side backoff so users aren't repeatedly hammering a dead quota.
+- [ ] 10.3 RapidAPI quota/rate limit exhausted (`429` response) → distinct "try again later"
+  message + client-side backoff so users aren't repeatedly hammering a dead quota.
 - [ ] 10.4 Storage full → catch `IOException` from the `MediaStore`/file write, mark item `FAILED`
   with a specific "not enough storage" reason.
 - [ ] 10.5 App killed mid-download and relaunched → Phase 5.5 already handles the Room-state
@@ -465,9 +460,11 @@ Notes worth designing around:
 - [ ] 12.1 R8/ProGuard rules reviewed; confirm release build still resolves links correctly
   (Retrofit/Moshi/Room reflection rules are a common release-only breakage point).
 - [ ] 12.2 Signed release build, Play App Signing enrolled.
-- [ ] 12.3 Confirm the app **never bundles the RapidAPI key** in the release artifact — grep the
-  final APK/AAB (`unzip` + `strings`) for the key literal as a final sanity check.
-- [ ] 12.4 Privacy policy covering: what's sent to your proxy (the pasted URL), that no Instagram
+- [ ] 12.3 The key is intentionally bundled per your direction — confirm it's only reachable via
+  `BuildConfig` (not duplicated as a plaintext literal anywhere else), that R8/ProGuard ran
+  successfully on the release build, and that the RapidAPI dashboard usage cap (Task 1.4) is
+  live before this build goes out.
+- [ ] 12.4 Privacy policy covering: what's sent to RapidAPI (the pasted URL), that no Instagram
   login/credentials are ever collected, and any analytics/crash reporting in use.
 - [ ] 12.5 **Distribution-risk note:** apps that download social media content are a recurring
   Play Store policy gray area (Instagram's ToS prohibits unauthorized downloading of content,
@@ -480,7 +477,8 @@ Notes worth designing around:
 ## 5. Acceptance Criteria
 
 - [ ] Pasting a valid Instagram reel/post link and tapping Download shows a preview, then starts a
-  trackable download with zero RapidAPI key material anywhere in the shipped app.
+  trackable download; the RapidAPI key exists in exactly one place (`BuildConfig`, sourced
+  from `local.properties`) and nowhere else in source.
 - [ ] Downloads screen shows live progress, accurate speed, and correct byte counts for every
   active item.
 - [ ] Pause truly stops network I/O (verify via network inspector, not just UI state) and Resume
@@ -488,7 +486,7 @@ Notes worth designing around:
 - [ ] Delete removes both the Room row and any on-disk/MediaStore artifact — no orphaned files.
 - [ ] Killing the app mid-download and reopening it shows the item as `PAUSED`, never a phantom
   stuck `DOWNLOADING` state.
-- [ ] A MITM proxy on a test device cannot intercept traffic to your API domain (SSL pinning
+- [ ] A MITM proxy on a test device cannot intercept traffic to the RapidAPI domain (SSL pinning
   verified per Task 8.7).
 - [ ] Completed files are visible in the system Downloads/Gallery app via `MediaStore`, on both a
   device running API 29+ and one running API 26–28.
@@ -501,8 +499,9 @@ Notes worth designing around:
 
 1. Confirm the `type: "image"` single-track assumption for photo posts with a real API call
    (Task 4.1) — only the reel (video+audio) shape has been verified so far.
-2. Decide whether your Cloudflare Worker proxy is a modification of your existing Instagram reel
-   downloader Worker or a new one — reusing existing infra is likely faster.
+2. Set a review cadence (e.g. monthly) for the RapidAPI usage dashboard, since there's no proxy
+   layer to absorb or rate-limit abuse if the key ever leaks — the dashboard cap (Task 1.4) is the
+   only backstop.
 3. Decide min SDK (26 assumed above) based on your target audience's device spread.
 4. Decide Play Store vs. sideload/direct-APK distribution given the policy note in Task 12.5.
 5. Confirm how long the CDN URLs stay valid (§3.3's signed-URL expiry note) — worth one manual
