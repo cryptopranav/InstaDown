@@ -2,7 +2,7 @@ package com.pranavkd.instadown.presentation.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,7 +19,7 @@ import com.pranavkd.instadown.presentation.home.HomeScreen
 
 val navItems = listOf(
     NavItem(Screen.Home.route, "Home", Icons.Filled.Home),
-    NavItem(Screen.Downloads.route, "Downloads", Icons.Filled.List),
+    NavItem(Screen.Downloads.route, "Downloads", Icons.AutoMirrored.Filled.List),
     NavItem(Screen.Settings.route, "Settings", Icons.Filled.Settings)
 )
 
@@ -61,10 +61,12 @@ fun CurrentBottomNavBar(
         items = navItems,
         currentRoute = currentRoute,
         onNavigate = { route ->
-            navController.navigate(route) {
-                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
+            if (route != currentRoute) {
+                navController.navigate(route) {
+                    popUpTo(Screen.Home.route) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
             }
         },
         modifier = modifier

@@ -29,7 +29,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -59,9 +58,11 @@ import com.pranavkd.instadown.domain.model.MediaTrackType
 @Composable
 fun HomeScreen(
     onNavigateToDownloads: () -> Unit,
+    onViewAll: () -> Unit = onNavigateToDownloads,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val recentDownloads by viewModel.recentDownloads.collectAsStateWithLifecycle()
     var urlInput by remember { mutableStateOf("") }
     val context = LocalContext.current
 
@@ -279,15 +280,20 @@ fun HomeScreen(
                 }
             }
             is HomeUiState.Idle -> {
-                // Recent Saves Section
-                RecentSavesSection()
+                RecentSavesSection(
+                    downloads = recentDownloads,
+                    onViewAll = onViewAll
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RecentSavesSection() {
+private fun RecentSavesSection(
+    downloads: List<com.pranavkd.instadown.domain.model.DownloadItem>,
+    onViewAll: () -> Unit
+) {
     Spacer(Modifier.height(24.dp))
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
         Row(
@@ -303,10 +309,116 @@ private fun RecentSavesSection() {
             Text(
                 "View All",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clickable { onViewAll() }
             )
         }
         Spacer(Modifier.height(16.dp))
+
+        if (downloads.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                downloads.chunked(2).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        rowItems.forEach { item ->
+                            RecentSaveCard(
+                                item = item,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (rowItems.size < 2) {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "No saves yet",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentSaveCard(
+    item: com.pranavkd.instadown.domain.model.DownloadItem,
+    modifier: Modifier = Modifier
+) {
+    val isCompleted = item.status == com.pranavkd.instadown.domain.model.DownloadStatus.COMPLETED
+    Surface(
+        modifier = modifier
+            .aspectRatio(3f / 4f)
+            .clip(RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (item.thumbnailUrl != null) {
+                AsyncImage(
+                    model = item.thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            if (isCompleted) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.5.dp, MaterialTheme.colorScheme.surface.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Text(
+                        "\u2713",
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            listOf(
+                                androidx.compose.ui.graphics.Color.Transparent,
+                                androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.4f)
+                            )
+                        )
+                    )
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = item.title?.take(24) ?: item.outputFileName.take(24),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = androidx.compose.ui.graphics.Color.White
+                )
+            }
+        }
     }
 }
 

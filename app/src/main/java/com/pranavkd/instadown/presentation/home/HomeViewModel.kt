@@ -2,16 +2,22 @@ package com.pranavkd.instadown.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pranavkd.instadown.domain.model.DownloadItem
 import com.pranavkd.instadown.domain.model.MediaError
 import com.pranavkd.instadown.domain.model.MediaInfo
 import com.pranavkd.instadown.domain.usecase.FetchMediaInfoUseCase
 import com.pranavkd.instadown.domain.usecase.IsInstagramUrlUseCase
+import com.pranavkd.instadown.domain.usecase.ObserveDownloadsUseCase
 import com.pranavkd.instadown.domain.usecase.StartDownloadUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -19,7 +25,8 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     private val isInstagramUrlUseCase: IsInstagramUrlUseCase,
     private val fetchMediaInfoUseCase: FetchMediaInfoUseCase,
-    private val startDownloadUseCase: StartDownloadUseCase
+    private val startDownloadUseCase: StartDownloadUseCase,
+    observeDownloadsUseCase: ObserveDownloadsUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
@@ -27,6 +34,11 @@ class HomeViewModel @Inject constructor(
 
     private val _events = MutableSharedFlow<HomeEvent>()
     val events = _events.asSharedFlow()
+
+    val recentDownloads: StateFlow<List<DownloadItem>> =
+        observeDownloadsUseCase()
+            .map { it.sortedByDescending { d -> d.createdAt }.take(4) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun fetchMedia(url: String) {
         if (!isInstagramUrlUseCase(url)) {
