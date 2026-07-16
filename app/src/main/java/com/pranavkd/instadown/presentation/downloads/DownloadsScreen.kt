@@ -74,55 +74,61 @@ fun DownloadsScreen(
         )
     }
 
-    if (downloads.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(32.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        if (downloads.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    "\uE2C4",
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                )
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "Your archived media will appear here.\nTreat every download with respect.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(32.dp)
+                ) {
+                    Text(
+                        "\uE2C4",
+                        style = MaterialTheme.typography.displayLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Your archived media will appear here.\nTreat every download with respect.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
             }
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(downloads, key = { it.id }) { item ->
-                DownloadCard(
-                    item = item,
-                    onPause = { viewModel.pause(item.id) },
-                    onResume = { viewModel.resume(item.id) },
-                    onDelete = { deleteTarget = item },
-                    onRetry = { viewModel.retry(item.id) },
-                    onOpen = {
-                        item.mediaStoreUri?.let { uri ->
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(Uri.parse(uri), item.outputMimeType)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            if (intent.resolveActivity(context.packageManager) != null) {
-                                context.startActivity(intent)
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(downloads, key = { it.id }) { item ->
+                    DownloadCard(
+                        item = item,
+                        onPause = { viewModel.pause(item.id) },
+                        onResume = { viewModel.resume(item.id) },
+                        onDelete = { deleteTarget = item },
+                        onRetry = { viewModel.retry(item.id) },
+                        onOpen = {
+                            item.mediaStoreUri?.let { uri ->
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(Uri.parse(uri), item.outputMimeType)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                if (intent.resolveActivity(context.packageManager) != null) {
+                                    context.startActivity(intent)
+                                }
                             }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }
