@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "android-clean-architecture": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/android-clean-architecture/SKILL.md",
+      "computedHash": "8f7efca3efcc228560c39c366e846d4bf22e585f9847610634f53b7622f7795c"
+    },
+    "android-jetpack-compose": {
+      "source": "maxrave-dev/SimpMusic",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/jetpack-compose/SKILL.md",
+      "computedHash": "3605ebbb04b9d443e043657081b230dbd2a4620c0759360fbc5c57ee625d2390"
+    },
+    "jetpack-compose-ui": {
+      "source": "tomevault-io/tomes",
+      "sourceType": "github",
+      "skillPath": "peterbamuhigire--skills-web-dev/skills/jetpack-compose-ui/SKILL.md",
+      "computedHash": "3e3d513cdfd40daffa907f7506289a7da89bf9d0fa783f40846e471d8b686271"
+    }
+  }
+}
