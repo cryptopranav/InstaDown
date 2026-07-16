@@ -1,6 +1,12 @@
 package com.pranavkd.instadown.presentation.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
@@ -58,13 +65,30 @@ fun BottomNavBar(
         ) {
             items.forEach { item ->
                 val isSelected = currentRoute == item.route
+
                 val containerColor by animateColorAsState(
                     targetValue = if (isSelected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+                    else MaterialTheme.colorScheme.surface.copy(alpha = 0f),
+                    animationSpec = tween(300, easing = FastOutSlowInEasing)
                 )
                 val iconTint by animateColorAsState(
                     targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(300, easing = FastOutSlowInEasing)
+                )
+                val iconScale by animateFloatAsState(
+                    targetValue = if (isSelected) 1.15f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
+                val horizontalPadding by animateDpAsState(
+                    targetValue = if (isSelected) 16.dp else 12.dp,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
                 )
 
                 Box(
@@ -75,14 +99,16 @@ fun BottomNavBar(
                             if (isSelected) Modifier.background(containerColor, CircleShape)
                             else Modifier
                         )
-                        .padding(12.dp),
+                        .padding(horizontal = horizontalPadding, vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = item.icon,
                         contentDescription = item.label,
                         tint = iconTint,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier
+                            .size(24.dp)
+                            .scale(iconScale)
                     )
                 }
             }

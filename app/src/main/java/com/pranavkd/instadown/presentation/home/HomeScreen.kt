@@ -29,6 +29,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,12 +47,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.pranavkd.instadown.R
 import com.pranavkd.instadown.domain.model.MediaInfo
 import com.pranavkd.instadown.domain.model.MediaTrackType
 
@@ -224,18 +227,21 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             listOf(
-                "hd" to "4K READY",
-                "bolt" to "INSTANT",
-                "lock" to "SECURE"
-            ).forEach { (icon, label) ->
+                R.drawable.ic_hd to "4K READY",
+                R.drawable.ic_bolt to "INSTANT",
+                R.drawable.ic_lock to "SECURE"
+            ).forEach { (iconRes, label) ->
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 ) {
-                    Text(
-                        icon,
-                        style = MaterialTheme.typography.bodyLarge
+                    Icon(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = label,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         label,
                         style = MaterialTheme.typography.labelSmall,
