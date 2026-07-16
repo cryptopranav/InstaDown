@@ -16,6 +16,7 @@ import com.pranavkd.instadown.presentation.components.BottomNavBar
 import com.pranavkd.instadown.presentation.components.NavItem
 import com.pranavkd.instadown.presentation.downloads.DownloadsScreen
 import com.pranavkd.instadown.presentation.home.HomeScreen
+import com.pranavkd.instadown.presentation.settings.SettingsScreen
 
 val navItems = listOf(
     NavItem(Screen.Home.route, "Home", Icons.Filled.Home),
@@ -46,7 +47,7 @@ fun NavGraph(navController: NavHostController, modifier: Modifier = Modifier) {
             DownloadsScreen()
         }
         composable(Screen.Settings.route) {
-            DownloadsScreen()
+            SettingsScreen()
         }
     }
 }
@@ -65,7 +66,6 @@ fun CurrentBottomNavBar(
                 navController.navigate(route) {
                     popUpTo(Screen.Home.route) { saveState = true }
                     launchSingleTop = true
-                    restoreState = true
                 }
             }
         },
