@@ -146,7 +146,7 @@ private fun DownloadsHeader() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 48.dp, bottom = 8.dp)
+            .padding(start = 24.dp, top = 48.dp, bottom = 8.dp)
     ) {
         Text(
             text = "Downloads",
