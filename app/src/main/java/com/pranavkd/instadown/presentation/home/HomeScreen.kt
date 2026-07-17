@@ -106,7 +106,7 @@ fun HomeScreen(
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
     ) {
@@ -293,6 +293,7 @@ fun HomeScreen(
                 )
             }
         }
+        Spacer(Modifier.height(120.dp))
     }
 }
 

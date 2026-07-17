@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
@@ -69,26 +70,30 @@ fun BottomNavBar(
                 val containerColor by animateColorAsState(
                     targetValue = if (isSelected) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.surface.copy(alpha = 0f),
-                    animationSpec = tween(300, easing = FastOutSlowInEasing)
+                    animationSpec = tween(400, easing = FastOutSlowInEasing)
                 )
                 val iconTint by animateColorAsState(
                     targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
-                    animationSpec = tween(300, easing = FastOutSlowInEasing)
+                    animationSpec = tween(400, easing = FastOutSlowInEasing)
                 )
                 val iconScale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.15f else 1f,
+                    targetValue = if (isSelected) 1.2f else 0.9f,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMedium
+                        stiffness = Spring.StiffnessLow
                     )
                 )
                 val horizontalPadding by animateDpAsState(
-                    targetValue = if (isSelected) 16.dp else 12.dp,
+                    targetValue = if (isSelected) 20.dp else 12.dp,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessMedium
+                        stiffness = Spring.StiffnessLow
                     )
+                )
+                val iconAlpha by animateFloatAsState(
+                    targetValue = if (isSelected) 1f else 0.6f,
+                    animationSpec = tween(300, easing = FastOutSlowInEasing)
                 )
 
                 Box(
@@ -109,6 +114,7 @@ fun BottomNavBar(
                         modifier = Modifier
                             .size(24.dp)
                             .scale(iconScale)
+                            .graphicsLayer(alpha = iconAlpha)
                     )
                 }
             }
